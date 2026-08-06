@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MCU Movie Checklist</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    background: #0d0d10;
+    color: #f2f2f2;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    margin: 0;
+    padding: 24px;
+  }
+  .wrap {
+    max-width: 620px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 20px;
+    margin: 0 0 4px 0;
+    letter-spacing: 0.5px;
+  }
+  .sub {
+    color: #999;
+    font-size: 13px;
+    margin-bottom: 18px;
+  }
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #24242a;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #d4af37, #b8241f);
+    width: 0%;
+    transition: width 0.25s ease;
+  }
+  .progress-text {
+    font-size: 12px;
+    color: #aaa;
+    margin-bottom: 20px;
+  }
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  li:hover {
+    background: #1a1a1f;
+  }
+  li.unreleased {
+    opacity: 0.55;
+  }
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #d4af37;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .title {
+    font-size: 14.5px;
+  }
+  li.checked .title {
+    text-decoration: line-through;
+    color: #777;
+  }
+  .badge {
+    margin-left: auto;
+    font-size: 10px;
+    color: #b8241f;
+    border: 1px solid #b8241f;
+    padding: 1px 6px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+  .reset {
+    margin-top: 20px;
+    background: none;
+    border: 1px solid #444;
+    color: #aaa;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .reset:hover {
+    border-color: #b8241f;
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>MCU Movies — Chronological Checklist</h1>
+  <div class="sub">Tap a title to check it off. Progress is saved automatically.</div>
+
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="progress-text" id="progressText">Loading...</div>
+
+  <ul id="list"></ul>
+
+  <button class="reset" id="resetBtn">Reset all</button>
+</div>
+
+<script>
+const movies = [
+  "Iron Man",
+  "The Incredible Hulk",
+  "Iron Man 2",
+  "Thor",
+  "Captain America: The First Avenger",
+  "The Avengers",
+  "Iron Man 3",
+  "Thor: The Dark World",
+  "Captain America: The Winter Soldier",
+  "Guardians of the Galaxy",
+  "Avengers: Age of Ultron",
+  "Ant-Man",
+  "Captain America: Civil War",
+  "Doctor Strange",
+  "Guardians of the Galaxy Vol. 2",
+  "Spider-Man: Homecoming",
+  "Thor: Ragnarok",
+  "Black Panther",
+  "Avengers: Infinity War",
+  "Ant-Man and the Wasp",
+  "Captain Marvel",
+  "Avengers: Endgame",
+  "Spider-Man: Far From Home",
+  "Black Widow",
+  "Shang-Chi and the Legend of the Ten Rings",
+  "Eternals",
+  "Spider-Man: No Way Home",
+  "Doctor Strange in the Multiverse of Madness",
+  "Thor: Love and Thunder",
+  "Black Panther: Wakanda Forever",
+  "Ant-Man and the Wasp: Quantumania",
+  "Guardians of the Galaxy Vol. 3",
+  "The Marvels",
+  "Deadpool & Wolverine",
+  "Captain America: Brave New World",
+  "Thunderbolts*",
+  { title: "Fantastic Four: First Steps" },
+  { title: "Spider-Man: Brand New Day", unreleased: true },
+  { title: "Avengers: Doomsday", unreleased: true },
+  { title: "The New Avengers", unreleased: true }
+];
+
+const STORAGE_KEY = "mcu_checklist_state";
+let state = {};
+
+const listEl = document.getElementById("list");
+const fillEl = document.getElementById("progressFill");
+const textEl = document.getElementById("progressText");
+
+function normalize(m) {
+  return typeof m === "string" ? { title: m, unreleased: false } : { title: m.title, unreleased: !!m.unreleased };
+}
+
+async function loadState() {
+  try {
+    const result = await window.storage.get(STORAGE_KEY);
+    state = result ? JSON.parse(result.value) : {};
+  } catch (e) {
+    state = {};
+  }
+  render();
+}
+
+async function saveState() {
+  try {
+    await window.storage.set(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.error("Save failed", e);
+  }
+}
+
+function updateProgress() {
+  const total = movies.length;
+  const checked = Object.values(state).filter(Boolean).length;
+  const pct = total ? Math.round((checked / total) * 100) : 0;
+  fillEl.style.width = pct + "%";
+  textEl.textContent = checked + " of " + total + " watched (" + pct + "%)";
+}
+
+function render() {
+  listEl.innerHTML = "";
+  movies.forEach((raw, i) => {
+    const m = normalize(raw);
+    const li = document.createElement("li");
+    li.className = (state[i] ? "checked" : "") + (m.unreleased ? " unreleased" : "");
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = !!state[i];
+    cb.addEventListener("change", () => toggle(i));
+
+    const span = document.createElement("span");
+    span.className = "title";
+    span.textContent = m.title;
+
+    li.appendChild(cb);
+    li.appendChild(span);
+
+    if (m.unreleased) {
+      const badge = document.createElement("span");
+      badge.className = "badge";
+      badge.textContent = "UPCOMING";
+      li.appendChild(badge);
+    }
+
+    li.addEventListener("click", (e) => {
+      if (e.target !== cb) {
+        cb.checked = !cb.checked;
+        toggle(i);
+      }
+    });
+
+    listEl.appendChild(li);
+  });
+  updateProgress();
+}
+
+function toggle(i) {
+  state[i] = !state[i];
+  saveState();
+  render();
+}
+
+document.getElementById("resetBtn").addEventListener("click", async () => {
+  state = {};
+  await saveState();
+  render();
+});
+
+loadState();
+</script>
+</body>
+</html>
