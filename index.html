@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MCU Movie Checklist</title>
 <style>
   * { box-sizing: border-box; }
@@ -12,103 +13,64 @@
     margin: 0;
     padding: 24px;
   }
-  .wrap {
-    max-width: 620px;
-    margin: 0 auto;
+  .wrap { max-width: 620px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px 0; letter-spacing: 0.5px; }
+  .sub { color: #999; font-size: 13px; margin-bottom: 14px; }
+  .authbar {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: #aaa; margin-bottom: 16px;
   }
-  h1 {
-    font-size: 20px;
-    margin: 0 0 4px 0;
-    letter-spacing: 0.5px;
+  .authbar button {
+    background: none; border: 1px solid #444; color: #ddd;
+    padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
   }
-  .sub {
-    color: #999;
-    font-size: 13px;
-    margin-bottom: 18px;
-  }
+  .authbar button:hover { border-color: #d4af37; color: #fff; }
   .progress-bar {
-    width: 100%;
-    height: 8px;
-    background: #24242a;
-    border-radius: 4px;
-    overflow: hidden;
-    margin-bottom: 6px;
+    width: 100%; height: 8px; background: #24242a;
+    border-radius: 4px; overflow: hidden; margin-bottom: 6px;
   }
   .progress-fill {
     height: 100%;
     background: linear-gradient(90deg, #d4af37, #b8241f);
-    width: 0%;
-    transition: width 0.25s ease;
+    width: 0%; transition: width 0.25s ease;
   }
-  .progress-text {
-    font-size: 12px;
-    color: #aaa;
-    margin-bottom: 20px;
-  }
-  ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
+  .progress-text { font-size: 12px; color: #aaa; margin-bottom: 20px; }
+  ul { list-style: none; margin: 0; padding: 0; }
   li {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    margin-bottom: 4px;
-    cursor: pointer;
-    transition: background 0.15s ease;
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: 8px; margin-bottom: 4px;
+    cursor: pointer; transition: background 0.15s ease;
   }
-  li:hover {
-    background: #1a1a1f;
-  }
-  li.unreleased {
-    opacity: 0.55;
-  }
+  li:hover { background: #1a1a1f; }
+  li.unreleased { opacity: 0.55; }
   input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: #d4af37;
-    cursor: pointer;
-    flex-shrink: 0;
+    width: 18px; height: 18px; accent-color: #d4af37;
+    cursor: pointer; flex-shrink: 0;
   }
-  .title {
-    font-size: 14.5px;
-  }
-  li.checked .title {
-    text-decoration: line-through;
-    color: #777;
-  }
+  .title { font-size: 14.5px; }
+  li.checked .title { text-decoration: line-through; color: #777; }
   .badge {
-    margin-left: auto;
-    font-size: 10px;
-    color: #b8241f;
-    border: 1px solid #b8241f;
-    padding: 1px 6px;
-    border-radius: 10px;
-    flex-shrink: 0;
+    margin-left: auto; font-size: 10px; color: #b8241f;
+    border: 1px solid #b8241f; padding: 1px 6px;
+    border-radius: 10px; flex-shrink: 0;
   }
   .reset {
-    margin-top: 20px;
-    background: none;
-    border: 1px solid #444;
-    color: #aaa;
-    padding: 8px 14px;
-    border-radius: 6px;
-    font-size: 12px;
-    cursor: pointer;
+    margin-top: 20px; background: none; border: 1px solid #444;
+    color: #aaa; padding: 8px 14px; border-radius: 6px;
+    font-size: 12px; cursor: pointer;
   }
-  .reset:hover {
-    border-color: #b8241f;
-    color: #fff;
-  }
+  .reset:hover { border-color: #b8241f; color: #fff; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>MCU Movies — Chronological Checklist</h1>
-  <div class="sub">Tap a title to check it off. Progress is saved automatically.</div>
+  <div class="sub">Tap a title to check it off. Sign in to sync across devices.</div>
+
+  <div class="authbar">
+    <span id="authStatus">Saved on this device only</span>
+    <button id="authBtn">Sign in with Google</button>
+  </div>
 
   <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
   <div class="progress-text" id="progressText">Loading...</div>
@@ -118,7 +80,30 @@
   <button class="reset" id="resetBtn">Reset all</button>
 </div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc }
+  from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+// ====== PASTE YOUR FIREBASE CONFIG HERE (Project settings > Your apps > Web app) ======
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  appId: "YOUR_APP_ID"
+};
+// =======================================================================================
+
+const firebaseReady = firebaseConfig.apiKey !== "YOUR_API_KEY";
+let auth, db, user = null;
+if (firebaseReady) {
+  const app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+}
+
 const movies = [
   "Iron Man",
   "The Incredible Hulk",
@@ -162,33 +147,44 @@ const movies = [
   { title: "The New Avengers", unreleased: true }
 ];
 
-const STORAGE_KEY = "mcu_checklist_state";
+const LOCAL_KEY = "mcu_checklist_state";
 let state = {};
 
 const listEl = document.getElementById("list");
 const fillEl = document.getElementById("progressFill");
 const textEl = document.getElementById("progressText");
+const authBtn = document.getElementById("authBtn");
+const authStatus = document.getElementById("authStatus");
 
 function normalize(m) {
   return typeof m === "string" ? { title: m, unreleased: false } : { title: m.title, unreleased: !!m.unreleased };
 }
 
-async function loadState() {
-  try {
-    const result = await window.storage.get(STORAGE_KEY);
-    state = result ? JSON.parse(result.value) : {};
-  } catch (e) {
-    state = {};
-  }
-  render();
+function loadLocal() {
+  try { state = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; }
+  catch (e) { state = {}; }
 }
 
 async function saveState() {
-  try {
-    await window.storage.set(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) {
-    console.error("Save failed", e);
+  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(state)); } catch (e) {}
+  if (user && db) {
+    try { await setDoc(doc(db, "users", user.uid), { checked: state, updated: Date.now() }); }
+    catch (e) { console.error("Cloud save failed", e); }
   }
+}
+
+async function pullCloud() {
+  if (!user || !db) return;
+  try {
+    const snap = await getDoc(doc(db, "users", user.uid));
+    if (snap.exists()) {
+      state = snap.data().checked || {};
+      try { localStorage.setItem(LOCAL_KEY, JSON.stringify(state)); } catch (e) {}
+    } else {
+      await saveState(); // first sign-in: upload what's on this device
+    }
+  } catch (e) { console.error("Cloud load failed", e); }
+  render();
 }
 
 function updateProgress() {
@@ -249,7 +245,30 @@ document.getElementById("resetBtn").addEventListener("click", async () => {
   render();
 });
 
-loadState();
+authBtn.addEventListener("click", async () => {
+  if (!firebaseReady) {
+    alert("Add your Firebase config in index.html first.");
+    return;
+  }
+  try {
+    if (user) await signOut(auth);
+    else await signInWithPopup(auth, new GoogleAuthProvider());
+  } catch (e) { console.error("Auth error", e); }
+});
+
+if (firebaseReady) {
+  onAuthStateChanged(auth, async (u) => {
+    user = u;
+    authBtn.textContent = u ? "Sign out" : "Sign in with Google";
+    authStatus.textContent = u ? "Synced as " + (u.displayName || u.email) : "Saved on this device only";
+    if (u) await pullCloud();
+  });
+} else {
+  authStatus.textContent = "Saved on this device only (Firebase not set up)";
+}
+
+loadLocal();
+render();
 </script>
 </body>
 </html>
